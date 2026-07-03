@@ -1,0 +1,80 @@
+Broker / Cluster Info
+
+# List brokers via ZK (older) or bootstrap (newer)
+kafka-broker-api-versions.sh --bootstrap-server <broker>:9092
+
+# Cluster metadata
+kafka-metadata-quorum.sh --bootstrap-server <broker>:9092 describe --status
+
+Topics
+
+# List topics
+kafka-topics.sh --bootstrap-server <broker>:9092 --list
+
+# Describe a topic (partitions, ISR, leader, replication)
+kafka-topics.sh --bootstrap-server <broker>:9092 --describe --topic <topic>
+
+# Create topic
+kafka-topics.sh --bootstrap-server <broker>:9092 --create --topic <topic> \
+  --partitions 6 --replication-factor 3
+
+# Increase partitions (cannot decrease!)
+kafka-topics.sh --bootstrap-server <broker>:9092 --alter --topic <topic> --partitions 12
+
+# Delete topic
+kafka-topics.sh --bootstrap-server <broker>:9092 --delete --topic <topic>
+
+# Find under-replicated / offline partitions (critical for health checks)
+kafka-topics.sh --bootstrap-server <broker>:9092 --describe --under-replicated-partitions
+kafka-topics.sh --bootstrap-server <broker>:9092 --describe --unavailable-partitions
+
+Consumer Groups
+
+# List groups
+kafka-consumer-groups.sh --bootstrap-server <broker>:9092 --list
+
+# Describe group (lag per partition — THE key troubleshooting command)
+kafka-consumer-groups.sh --bootstrap-server <broker>:9092 --describe --group <group>
+
+# Reset offsets
+kafka-consumer-groups.sh --bootstrap-server <broker>:9092 --group <group> \
+  --topic <topic> --reset-offsets --to-earliest --execute
+# --to-latest / --to-datetime <ISO8601> / --shift-by <+/-N> also available
+
+# Delete a group (must have no active members)
+kafka-consumer-groups.sh --bootstrap-server <broker>:9092 --delete --group <group>
+
+Produce / Consume (quick tests)
+
+# Console producer
+kafka-console-producer.sh --bootstrap-server <broker>:9092 --topic <topic>
+
+# Console consumer (from beginning)
+kafka-console-consumer.sh --bootstrap-server <broker>:9092 --topic <topic> --from-beginning
+
+# Consume with key + headers visible
+kafka-console-consumer.sh --bootstrap-server <broker>:9092 --topic <topic> \
+  --property print.key=true --property print.headers=true --from-beginning
+
+Config Management
+
+# Describe dynamic broker/topic config
+kafka-configs.sh --bootstrap-server <broker>:9092 --entity-type topics --entity-name <topic> --describe
+
+# Set topic config (e.g. retention)
+kafka-configs.sh --bootstrap-server <broker>:9092 --entity-type topics --entity-name <topic> \
+  --alter --add-config retention.ms=604800000
+
+Reassignment / Rebalancing
+
+# Generate reassignment plan
+kafka-reassign-partitions.sh --bootstrap-server <broker>:9092 \
+  --topics-to-move-json-file topics.json --broker-list "1,2,3" --generate
+
+# Execute
+kafka-reassign-partitions.sh --bootstrap-server <broker>:9092 \
+  --reassignment-json-file reassign.json --execute
+
+# Verify progress
+kafka-reassign-partitions.sh --bootstrap-server <broker>:9092 \
+  --reassignment-json-file reassign.json --verify
