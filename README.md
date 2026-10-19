@@ -13,7 +13,7 @@ Notes, manifests and cheatsheets from hands-on Kubernetes work: building cluster
 
 | Repo | Purpose |
 |---|---|
-| [Automated-Infra-Via-Terraform](https://github.com/msaxena14/Automated-Infra-Via-Terraform) | Terraform for the infrastructure these notes build on (VPC and more) |
+| [terraform](https://github.com/msaxena14/terraform) | Terraform for the infrastructure these notes build on (VPC and more) |
 | [ArgoCD](https://github.com/msaxena14/ArgoCD) | Argo CD setup and the applications it manages |
 | [msaxena14.github.io](https://github.com/msaxena14/msaxena14.github.io) | Published site, including write-ups of debugging investigations |
 
