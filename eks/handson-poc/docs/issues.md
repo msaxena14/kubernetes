@@ -177,3 +177,12 @@ Each entry: Symptom, Cause, Found by, Fix, Prevent. IDs and names are placeholde
 **Cause:** The version is fixed while creating.
 **Fix:** Delete the node group and create a new one pinned to the corrected version.
 **Prevent:** Verify the template version contents before creating the node group.
+
+---
+
+### `kubectl` on the bastion: `You must be logged in to the server`
+**Symptom:** On the bastion, every `kubectl` command fails with `the server has asked for the client to provide credentials`.
+**Cause:** The network path and the IAM role were both fine (the API server answered, and `update-kubeconfig` worked), but the bastion's role had no EKS access entry. Kubernetes did not know who the caller was. Only the cluster creator, the node role and the EKS service role had entries.
+**Found by:** `aws eks list-access-entries` showed three principals and not the bastion role; the instance's role was read from its instance profile association. An authentication error (rather than a timeout) means the request reached the API server.
+**Fix:** `create-access-entry` (type `STANDARD`) plus `associate-access-policy` with `AmazonEKSClusterAdminPolicy` at cluster scope.
+**Prevent:** Treat any new `kubectl` user (bastion, CI, teammate) as three tasks: IAM permission, network path, access entry. See build-log step 10.

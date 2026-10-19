@@ -197,16 +197,46 @@ Look for `done! {"duration": ...}` (sub-second is healthy) and for `Unauthorized
 
 ## 10. Bastion (kubectl access to the private endpoint)
 
-Needs three separate things (details and the first-attempt values are in issues.md):
-1. **IAM**: instance role with only `eks:DescribeCluster` and `eks:ListClusters`, attached through an instance profile. Do not attach broad managed policies (EC2FullAccess, node/cluster policies).
-2. **Network**: the bastion lives in the VPC with a public IP (public subnets do not auto-assign), SSH from your IP only, and the cluster SG allows `443` from the bastion SG.
-3. **Kubernetes**: an access entry of type `STANDARD` for the bastion role with `AmazonEKSClusterAdminPolicy` at cluster scope.
+The API endpoint is private, so `kubectl` only works from inside the VPC. Three separate things have to be in place; each is a different system, and missing any one gives a different error.
 
-Then:
+| Layer | What | Missing it looks like |
+|---|---|---|
+| IAM | Instance role with only `eks:DescribeCluster` and `eks:ListClusters`, attached through an instance profile. No broad managed policies. | `aws eks update-kubeconfig` fails with `AccessDenied` |
+| Network | Bastion in the VPC with a public IP (public subnets do not auto-assign), SSH from your IP only, cluster SG allows `443` from the bastion SG | `kubectl` times out |
+| Kubernetes | An **access entry** for the bastion role (type `STANDARD`) with a policy attached | `error: You must be logged in to the server (the server has asked for the client to provide credentials)` |
+
+### Why the access entry has to be created explicitly
+IAM answers "who are you in AWS". Kubernetes has its own, separate answer to "what may you do in this cluster". `kubectl` presents a signed token, AWS tells the API server which IAM role it belongs to, and the API server then looks for an access entry for that role. No entry means no identity inside the cluster, so even an IAM administrator is rejected. Some identities get entries automatically (the cluster creator, and node roles when a node group is created); a bastion, CI runner or teammate does not.
+
+### Create the access entry
+Run from a machine that already has cluster access (the creator's profile), not from the bastion:
 ```bash
+aws eks create-access-entry --cluster-name <CLUSTER> \
+  --principal-arn arn:aws:iam::<ACCOUNT_ID>:role/<BASTION_ROLE> \
+  --type STANDARD --region us-east-1
+```
+```bash
+aws eks associate-access-policy --cluster-name <CLUSTER> \
+  --principal-arn arn:aws:iam::<ACCOUNT_ID>:role/<BASTION_ROLE> \
+  --policy-arn arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy \
+  --access-scope type=cluster --region us-east-1
+```
+Use `AmazonEKSViewPolicy` for a read-only bastion. Entries take effect within seconds.
+
+Verify:
+```bash
+aws eks list-access-entries --cluster-name <CLUSTER> --region us-east-1
+aws eks list-associated-access-policies --cluster-name <CLUSTER> \
+  --principal-arn arn:aws:iam::<ACCOUNT_ID>:role/<BASTION_ROLE> --region us-east-1
+```
+
+### Use it (on the bastion)
+```bash
+aws sts get-caller-identity          # must show assumed-role/<BASTION_ROLE>
 aws eks update-kubeconfig --name <CLUSTER> --region us-east-1
 kubectl get nodes -o wide
 ```
+If `get-caller-identity` shows a different identity (for example credentials from `aws configure`), `kubectl` will present that one instead of the instance role.
 
 ## 11. After the cluster is up
 
