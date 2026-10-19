@@ -1,0 +1,18 @@
+# Secrets and credentials
+.env
+*.pem
+*.key
+*kubeconfig*
+*.kubeconfig
+
+# Terraform
+*.tfstate
+*.tfstate.*
+.terraform/
+*.tfvars
+!*.tfvars.example
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
