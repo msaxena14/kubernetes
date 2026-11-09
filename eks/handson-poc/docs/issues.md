@@ -122,7 +122,7 @@ Each entry: Symptom, Cause, Found by, Fix, Prevent. IDs and names are placeholde
 **Symptom:** Caught before it failed: add-on `ACTIVE`, but `serviceAccountRoleArn: None` and no Pod Identity association.
 **Cause:** With neither configured, `aws-node` falls back to the node role. The node role had no `AmazonEKS_CNI_Policy`, so the CNI could not call EC2 and nodes would stay `NotReady`.
 **Found by:** `aws eks describe-addon --query addon.serviceAccountRoleArn` before creating the node group.
-**Fix:** Either set the IRSA role on the add-on, or attach `AmazonEKS_CNI_Policy` to the node role. The second was chosen.
+**Fix:** Either set the IRSA role on the add-on, or attach `AmazonEKS_CNI_Policy` to the node role. The node role was used in the first build; the design was later changed to a dedicated IRSA role (decisions.md).
 **Prevent:** Decide the CNI's credential source up front and verify it before the node group is created.
 
 ---

@@ -12,7 +12,7 @@ Choices made on this build and the reasoning, including alternatives that were c
 | Launch template | Custom AMI and user data, key pair, tags | Needed for the org's required `Team` tag at launch; the AMI makes the node group type `CUSTOM`. |
 | Subnets | On the node group, never in the template | The node group spreads nodes across AZs; a subnet in the template pins them to one. |
 | Node security group | None; nodes use the cluster SG | Cluster SG allows all traffic from itself and the control plane ENIs carry it, so no cross-SG rules are needed. |
-| CNI credentials | Node role with `AmazonEKS_CNI_Policy` | Simplest for a POC. Pod Identity needs the extra agent add-on and failed once without it; IRSA needs an OIDC provider and role. The IRSA role and provider were built and left unused. |
+| CNI credentials | Dedicated IRSA role with only `AmazonEKS_CNI_Policy` | Least privilege: only the `aws-node` service account can assume it, whereas on the node role every pod that reaches the instance metadata service could. Chosen over Pod Identity, which needs the agent add-on and failed once without it. Trade-off: needs an IAM OIDC provider per cluster, and the role's trust embeds that cluster's OIDC URL, so it is not reusable across clusters. First build used the node role as the simpler path. |
 | CNI add-on | Added after the cluster exists | The create-cluster wizard preselects a Pod Identity role and does not offer "Inherit from node". |
 | Node worker policy | `AmazonEKSWorkerNodePolicy` (not the Minimal one) | nodeadm needs `ec2:DescribeInstances` at boot; the minimal policy lacks it, costing about 6 minutes per node. |
 | Node access entry | Let EKS create it (`EC2_LINUX`) | A pre-made entry of type `EC2` (Auto Mode style) breaks node registration. |

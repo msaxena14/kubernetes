@@ -11,7 +11,7 @@ Placeholders: `<ACCOUNT_ID>`, `<CLUSTER>`, `<VPC_ID>`, `<LT_ID>`, `<NODE_ROLE>`,
 | Network | VPC `10.60.0.0/16` (Terraform): 2 public + 2 private subnets across 2 AZs, IGW, one NAT gateway, DNS support and DNS hostnames on |
 | Control plane | EKS 1.36, Auto Mode off, **private-only** API endpoint, access entries enabled |
 | Nodes | Managed node group on AL2023 (arm64), custom launch template, `c6g.large` / `c7g.large`, 1 to 2 nodes, private subnets |
-| CNI credentials | Node role carries `AmazonEKS_CNI_Policy` (no Pod Identity) |
+| CNI credentials | Dedicated IRSA role carrying only `AmazonEKS_CNI_Policy`; the node role does not carry it |
 | Access | Private endpoint, reached from a bastion in the VPC |
 
 ---
@@ -82,13 +82,15 @@ Added from the cluster's Add-ons tab after the cluster was `ACTIVE`, before any 
 
 Which role holds `AmazonEKS_CNI_Policy`? Never the cluster role: the policy is used by the `aws-node` pod on the nodes, not by the control plane. See [iam-roles.md](iam-roles.md).
 
-Decision: **the CNI gets credentials from the node role** (the node role carries `AmazonEKS_CNI_Policy`, step 6). Pod Identity was rejected because it needs an extra add-on (the agent); an IRSA role was created and then not used (see decisions.md).
+Decision: **the CNI gets credentials from a dedicated IRSA role** that carries only `AmazonEKS_CNI_Policy`. Only the `aws-node` service account can assume it, so other pods on a node cannot borrow the permission (they could if it sat on the node role). Pod Identity was not chosen: it needs an extra add-on (the agent) and failed once when the association existed without it (see decisions.md and issues.md).
 
-IRSA setup, for reference. It needs an IAM OIDC provider, which EKS does not create for you:
+IRSA setup, in order. All of it happens after the cluster is `ACTIVE` and before the node group.
+
+**1. Register the IAM OIDC provider**, which EKS does not create for you:
 ```bash
 aws iam create-open-id-connect-provider --url <OIDC_ISSUER_URL> --client-id-list sts.amazonaws.com
 ```
-Trust policy for the role (note the `${ISS}` braces if you build this in a zsh heredoc):
+**2. Create the role** with this trust policy (note the `${ISS}` braces if you build it in a zsh heredoc; validate the JSON before calling AWS):
 ```json
 {"Version":"2012-10-17","Statement":[{"Effect":"Allow",
  "Principal":{"Federated":"arn:aws:iam::<ACCOUNT_ID>:oidc-provider/<OIDC_ISSUER_HOST_AND_PATH>"},
@@ -97,9 +99,23 @@ Trust policy for the role (note the `${ISS}` braces if you build this in a zsh h
    "<OIDC_ISSUER_HOST_AND_PATH>:aud":"sts.amazonaws.com",
    "<OIDC_ISSUER_HOST_AND_PATH>:sub":"system:serviceaccount:kube-system:aws-node"}}}]}
 ```
-Attach `AmazonEKS_CNI_Policy`, then set it on the add-on only if you choose IRSA:
+Save the JSON above as `cni-trust.json`, then:
 ```bash
-aws eks update-addon --cluster-name <CLUSTER> --addon-name vpc-cni --service-account-role-arn <IRSA_ROLE_ARN>
+aws iam create-role --role-name <CNI_ROLE> --assume-role-policy-document file://cni-trust.json
+```
+**3. Attach the policy:**
+```bash
+aws iam attach-role-policy --role-name <CNI_ROLE> --policy-arn arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy
+```
+**4. Give the add-on the role.** Create the add-on with it, or update an existing one:
+```bash
+aws eks create-addon --cluster-name <CLUSTER> --addon-name vpc-cni --service-account-role-arn <CNI_ROLE_ARN>
+# or, if the add-on already exists:
+aws eks update-addon --cluster-name <CLUSTER> --addon-name vpc-cni --service-account-role-arn <CNI_ROLE_ARN>
+```
+**5. Verify the add-on shows the role** (it must not be empty, or `aws-node` falls back to the node role, which has no CNI permission):
+```bash
+aws eks describe-addon --cluster-name <CLUSTER> --addon-name vpc-cni --query addon.serviceAccountRoleArn
 ```
 
 Verify there is no stray Pod Identity association:
@@ -116,7 +132,8 @@ Trust `ec2.amazonaws.com`. Policies:
 |---|---|
 | `AmazonEKSWorkerNodePolicy` | kubelet and nodeadm. Includes `ec2:DescribeInstances`, which nodeadm needs at boot; the "minimal" worker policy lacks it and nodeadm waited ~6 minutes. |
 | `AmazonEC2ContainerRegistryReadOnly` | Pull images from ECR |
-| `AmazonEKS_CNI_Policy` | The CNI (`aws-node`) uses the node role for credentials |
+
+`AmazonEKS_CNI_Policy` is deliberately **not** on this role: the CNI has its own (step 5).
 
 Do **not** pre-create an access entry for this role. EKS creates the correct `EC2_LINUX` entry (`system:node:{{EC2PrivateDNSName}}`) when the node group is created, but only if none exists. A hand-made entry of type `EC2` (Auto Mode style) breaks node registration.
 
@@ -243,7 +260,7 @@ If `get-caller-identity` shows a different identity (for example credentials fro
 ## 11. After the cluster is up
 
 - Turn on control plane logging (`api`, `authenticator`, `audit`); missing logs made debugging much slower.
-- Decide on the unused IRSA role and OIDC provider: keep for a later switch, or delete.
+- At teardown, delete the CNI role and the IAM OIDC provider as well; the provider is not removed with the cluster.
 
 ## 12. Teardown order
 

@@ -7,8 +7,8 @@ Every role in the EKS build, who assumes it, and which policies it carries. Role
 | Role | Assumed by | Policies | Needed when |
 |---|---|---|---|
 | Cluster role | The EKS control plane (`eks.amazonaws.com`) | `AmazonEKSClusterPolicy` (+ four more with Auto Mode) | Always |
-| Node role | Worker node EC2 instances (`ec2.amazonaws.com`) | `AmazonEKSWorkerNodePolicy`, `AmazonEC2ContainerRegistryReadOnly`, optionally `AmazonEKS_CNI_Policy` | Managed node groups |
-| CNI role | The `aws-node` pod, through IRSA or Pod Identity | `AmazonEKS_CNI_Policy` | Only if the CNI should not use the node role |
+| Node role | Worker node EC2 instances (`ec2.amazonaws.com`) | `AmazonEKSWorkerNodePolicy`, `AmazonEC2ContainerRegistryReadOnly` | Managed node groups |
+| CNI role | The `aws-node` pod, through IRSA | `AmazonEKS_CNI_Policy` | Always (chosen design); the node role does not carry the CNI policy |
 | Bastion role | The bastion EC2 instance (`ec2.amazonaws.com`) | Inline: `eks:DescribeCluster`, `eks:ListClusters` | `kubectl` access to a private endpoint |
 | Service-linked role | EKS itself | `AWSServiceRoleForAmazonEKS`, created and managed by AWS | Created automatically; never create or edit it |
 
@@ -46,27 +46,33 @@ Trust: `ec2.amazonaws.com`, action `sts:AssumeRole`.
 |---|---|
 | `AmazonEKSWorkerNodePolicy` | kubelet and nodeadm. Includes `ec2:DescribeInstances`, which nodeadm calls at boot. The "minimal" worker policy lacks it, so nodeadm retried for about 6 minutes before the kubelet started |
 | `AmazonEC2ContainerRegistryReadOnly` | Pull images from ECR. (`...PullOnly` is the narrower alternative) |
-| `AmazonEKS_CNI_Policy` | **Only if the CNI uses the node role.** Lets `aws-node` create ENIs and assign IPs |
 
 Do not pre-create an EKS access entry for this role. EKS creates the right `EC2_LINUX` entry when the node group is created, only if none exists yet.
 
-## 3. CNI role (optional)
+## 3. CNI role (IRSA)
 
-Used only when the VPC CNI should not borrow the node role's permissions. It carries just `AmazonEKS_CNI_Policy`, and the trust policy depends on the method:
+The `aws-node` pod gets its AWS credentials from a dedicated role that carries just `AmazonEKS_CNI_Policy`. The node role deliberately does not carry that policy.
 
-| Method | Trust | Extra requirement |
-|---|---|---|
-| IRSA | Federated principal = the cluster's IAM OIDC provider, action `sts:AssumeRoleWithWebIdentity`, conditions on `aud` and `sub = system:serviceaccount:kube-system:aws-node` | An IAM OIDC provider registered for the cluster |
-| Pod Identity | `pods.eks.amazonaws.com`, actions `sts:AssumeRole` and `sts:TagSession` | The `eks-pod-identity-agent` add-on installed |
+| Item | Value |
+|---|---|
+| Trust | Federated principal = the cluster's IAM OIDC provider, action `sts:AssumeRoleWithWebIdentity` |
+| Conditions | `aud = sts.amazonaws.com` and `sub = system:serviceaccount:kube-system:aws-node` |
+| Policy | `AmazonEKS_CNI_Policy` |
+| Linked by | `serviceAccountRoleArn` on the `vpc-cni` add-on |
+| Needs | An IAM OIDC provider registered for the cluster (EKS does not create it) |
+
+The `sub` condition is what makes it least privilege: no other service account can assume the role.
+
+Alternative not chosen, **Pod Identity**: trust `pods.eks.amazonaws.com` (actions `sts:AssumeRole` and `sts:TagSession`), needs the `eks-pod-identity-agent` add-on installed first, and a pod identity association for `aws-node`. Simpler in Terraform and reusable across clusters, but it failed once in this build when the association existed without the agent.
 
 ## Which role gets `AmazonEKS_CNI_Policy`?
 
-Not the cluster role. The policy is used by the `aws-node` pod running on the nodes, with credentials the pod gets from one of:
+Not the cluster role, and in this design not the node role either. The policy is used by the `aws-node` pod running on the nodes, with credentials the pod gets from one of:
 
-1. **The node role** (simplest, used in this build). Any pod on the node that can reach the instance metadata service could use the same permissions.
-2. **A dedicated CNI role** through IRSA or Pod Identity (least privilege: only `aws-node` gets the permission).
+1. **The node role** (simplest; used in the first build). Any pod on the node that can reach the instance metadata service could use the same permissions.
+2. **A dedicated CNI role** through IRSA or Pod Identity (least privilege: only `aws-node` gets the permission). **This is the chosen design.**
 
-Pick one source and verify it before creating the node group. See issues.md: "VPC CNI add-on created with no credentials source".
+Verify the add-on actually shows the role before creating the node group: if `serviceAccountRoleArn` is empty, `aws-node` falls back to the node role, which has no CNI permission, and nodes stay `NotReady`. See issues.md: "VPC CNI add-on created with no credentials source".
 
 ## 4. Bastion role
 
