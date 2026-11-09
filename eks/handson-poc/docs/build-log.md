@@ -151,8 +151,40 @@ Do **not** pre-create an access entry for this role. EKS creates the correct `EC
 Sets: AMI, user data, key pair, tags. Deliberately does **not** set: subnet, instance profile, instance type (types live on the node group), security groups.
 
 - AMI: EKS-optimized AL2023, arm64, matching the cluster version. Using a custom AMI makes the node group type `CUSTOM`, so user data is mandatory.
+
 - Tags: `Team` and `Environment` in `tag_specifications` for `instance` (the console field is "Resource tags", not "Template tags"; template tags do not reach the instances).
 - No security groups: EKS then attaches the **cluster security group** to the nodes. That group allows all traffic from itself and the control plane ENIs carry it too, so nodes, control plane and the 10250/443 paths need no extra rules.
+
+### Finding the AMI
+EKS-optimized AL2023 AMIs are named:
+
+```
+amazon-eks-node-al2023-<architecture>-standard-<eks-cluster-version>
+```
+for example `amazon-eks-node-al2023-arm64-standard-1.37`.
+
+- `<architecture>` is `arm64` (Graviton: `c6g`, `c7g`, `m7g`, ...) or `x86_64`. It must match every instance type on the node group.
+- `<eks-cluster-version>` must match the cluster's Kubernetes version. A node can be one version behind the control plane, but start from an exact match.
+- `standard` is the general-purpose variant; separate variants exist for GPU and accelerated instances.
+- The real names end with a build date (`...-standard-1.37-v<YYYYMMDD>`), so search by the prefix above and take the newest.
+
+Console: EC2 > Images > AMIs > **Public images**, set the owner filter to Amazon, then search for the name prefix. Sort by creation date and use the newest.
+
+CLI (newest match, read-only):
+```bash
+aws ec2 describe-images --owners amazon \
+  --filters "Name=name,Values=amazon-eks-node-al2023-<architecture>-standard-<eks-cluster-version>-*" \
+  --query 'sort_by(Images,&CreationDate)[-1].[Name,ImageId,Architecture,CreationDate]' --output text
+```
+
+SSM parameter (AWS's own "recommended" pointer to the latest build, handy in Terraform):
+```bash
+aws ssm get-parameter \
+  --name /aws/service/eks/optimized-ami/<eks-cluster-version>/amazon-linux-2023/<architecture>/standard/recommended/image_id \
+  --query Parameter.Value --output text
+```
+
+Check that the image's `Architecture` matches the instance types, and that the Kubernetes version in the name matches the cluster, before putting the ID in the launch template.
 
 User data (every line at column 0, whole `--node-labels` flag on one line):
 ```
