@@ -80,6 +80,8 @@ Things to watch in this wizard:
 
 Added from the cluster's Add-ons tab after the cluster was `ACTIVE`, before any node group.
 
+Which role holds `AmazonEKS_CNI_Policy`? Never the cluster role: the policy is used by the `aws-node` pod on the nodes, not by the control plane. See [iam-roles.md](iam-roles.md).
+
 Decision: **the CNI gets credentials from the node role** (the node role carries `AmazonEKS_CNI_Policy`, step 6). Pod Identity was rejected because it needs an extra add-on (the agent); an IRSA role was created and then not used (see decisions.md).
 
 IRSA setup, for reference. It needs an IAM OIDC provider, which EKS does not create for you:
