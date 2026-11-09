@@ -1,0 +1,24 @@
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="//"
+
+--//
+Content-Type: application/node.eks.aws
+
+---
+apiVersion: node.eks.aws/v1alpha1
+kind: NodeConfig
+spec:
+  cluster:
+    apiServerEndpoint: ${api_endpoint}
+    certificateAuthority: ${certificate_authority}
+    cidr: ${service_cidr}
+    name: ${cluster_name}
+  kubelet:
+    config:
+      maxPods: 29
+      clusterDNS:
+      - ${cluster_dns}
+    flags:
+    - "--node-labels=product=infra,project=${cluster_name},env=dev"
+
+--//--

@@ -1,0 +1,3 @@
+# Copy to terraform.tfvars (git-ignored) and replace each sentence with the real value.
+account_id  = "<the 12-digit ID of your AWS account>"
+oidc_issuer = "<the cluster's OIDC issuer without https://, like oidc.eks.us-east-1.amazonaws.com/id/ID>"

@@ -1,0 +1,5 @@
+# Terraform drafts and plans can contain real identifiers; never commit them.
+generated.tf
+*.tfplan
+crash.log
+# State, .terraform/ and *.tfvars are already ignored by the repo root .gitignore.

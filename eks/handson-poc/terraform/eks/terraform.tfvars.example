@@ -1,0 +1,7 @@
+# Copy to terraform.tfvars (git-ignored) and replace each sentence with the real value.
+launch_template_id = "<the ID of the launch template to import, like lt-0123456789abcdef0>"
+cluster_name       = "<the name of your EKS cluster>"
+ami_id             = "<the ID of the EKS-optimized AMI, like ami-0123456789abcdef0>"
+key_name           = "<the name of the EC2 key pair for the nodes>"
+account_id         = "<the 12-digit ID of your AWS account>"
+admin_role         = "arn:aws:iam::${var.account_id}:role/${var.admin_role}"
