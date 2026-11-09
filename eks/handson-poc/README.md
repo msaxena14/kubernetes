@@ -5,6 +5,7 @@ Hands-on build of an Amazon EKS cluster from scratch (private-only API endpoint,
 ## Contents
 - [docs/build-log.md](docs/build-log.md): the clean build as an ordered runbook (VPC, IAM, cluster, add-ons, nodes, bastion, teardown) with verify commands
 - [docs/iam-roles.md](docs/iam-roles.md): every IAM role in the build, who assumes it, and which policies it carries (and which role should NOT get which policy)
+- [screenshots/](screenshots/README.md): masked screenshots and log excerpts from the running cluster
 - [docs/issues.md](docs/issues.md): every error hit across two builds, each with symptom, cause, how it was found, fix and prevention
 - [docs/decisions.md](docs/decisions.md): choices made and why, including alternatives rejected
 

@@ -1,0 +1,8 @@
+# Evidence 2: the EKS authenticator accepting the node's identity
+# Source: CloudWatch log group /aws/eks/<cluster>/cluster, stream authenticator-*
+# 'access granted' for the node role with group system:nodes = the kubelet authenticated and could register.
+
+time="2026-11-09T09:08:05Z" level=info msg="access granted" arn="arn:aws:iam::<ACCT>:role/AmazonEKSAutoNodeRole" client="<ip>:<port>" groups="[system:nodes]" method=POST path=/authenticate stsendpoint=sts.us-east-1.amazonaws.com uid="<uid>" username="system:node:<private-dns>"
+time="2026-11-09T08:57:55Z" level=info msg="access granted" arn="arn:aws:iam::<ACCT>:role/AmazonEKSAutoNodeRole" client="<ip>:<port>" groups="[system:nodes]" method=POST path=/authenticate stsendpoint=sts.us-east-1.amazonaws.com uid="<uid>" username="system:node:<private-dns>"
+time="2026-11-09T09:02:30Z" level=info msg="access granted" arn="arn:aws:iam::<ACCT>:role/AmazonEKSAutoNodeRole" client="<ip>:<port>" groups="[system:nodes]" method=POST path=/authenticate stsendpoint=sts.us-east-1.amazonaws.com uid="<uid>" username="system:node:<private-dns>"
+None

@@ -1,0 +1,18 @@
+# Evidence 1: nodeadm retrying ec2:DescribeInstances (HTTP 403) on a new node
+# Source: EC2 console output of the first node (boot log). Times are seconds since boot / UTC.
+# Cause: the node role carried AmazonEKSWorkerNodeMinimalPolicy, which lacks ec2:DescribeInstances.
+# Fix: attach AmazonEKSWorkerNodePolicy. After it, nodeadm finished in under a second.
+
+[    4.757260] nodeadm[pid]: info init/init.go:172 Fetching instance details..
+[    4.758517] nodeadm[pid]: SDK 2026/11/09 08:45:08 DEBUG attempting waiter request, attempt count: 1
+[    4.913389] nodeadm[pid]: SDK 2026/11/09 08:45:08 DEBUG request failed with unretryable error https response error StatusCode: 403, RequestID: <id>, api error UnauthorizedOperation: You are not authorized to perform this operation. User: arn:aws:sts::<ACCT>:assumed-role/AmazonEKSAutoNodeRole/<instance-id> is not authorized to perform: ec2:DescribeInstances because no identity-based policy allows the ec2:DescribeInstances action
+[   19.920388] nodeadm[pid]: SDK 2026/11/09 08:45:23 DEBUG attempting waiter request, attempt count: 2
+[   19.944225] nodeadm[pid]: SDK 2026/11/09 08:45:23 DEBUG request failed with unretryable error https response error StatusCode: 403, RequestID: <id>, api error UnauthorizedOperation: You are not authorized to perform this operation. User: arn:aws:sts::<ACCT>:assumed-role/AmazonEKSAutoNodeRole/<instance-id> is not authorized to perform: ec2:DescribeInstances because no identity-based policy allows the ec2:DescribeInstances action
+[   37.791668] nodeadm[pid]: SDK 2026/11/09 08:45:41 DEBUG attempting waiter request, attempt count: 3
+[   37.816753] nodeadm[pid]: SDK 2026/11/09 08:45:41 DEBUG request failed with unretryable error https response error StatusCode: 403, RequestID: <id>, api error UnauthorizedOperation: You are not authorized to perform this operation. User: arn:aws:sts::<ACCT>:assumed-role/AmazonEKSAutoNodeRole/<instance-id> is not authorized to perform: ec2:DescribeInstances because no identity-based policy allows the ec2:DescribeInstances action
+[   97.246346] nodeadm[pid]: SDK 2026/11/09 08:46:40 DEBUG attempting waiter request, attempt count: 4
+[   97.268455] nodeadm[pid]: SDK 2026/11/09 08:46:40 DEBUG request failed with unretryable error https response error StatusCode: 403, RequestID: <id>, api error UnauthorizedOperation: You are not authorized to perform this operation. User: arn:aws:sts::<ACCT>:assumed-role/AmazonEKSAutoNodeRole/<instance-id> is not authorized to perform: ec2:DescribeInstances because no identity-based policy allows the ec2:DescribeInstances action
+[  193.781137] nodeadm[pid]: SDK 2026/11/09 08:48:17 DEBUG attempting waiter request, attempt count: 5
+[  193.868068] nodeadm[pid]: info init/init.go:202 Instance details populated {"details": {"id":"<instance-id>","region":"us-east-1","type":"c6g.large","availabilityZone":"us-east-1b","mac":"<mac>","privateDnsName":"<private-dns>"}}
+[  193.984485] nodeadm[pid]: info init/init.go:157 done! {"duration": 189.241471406}
+[  196.789749] nodeadm[pid]: info init/init.go:157 done! {"duration": 0.414225874}
