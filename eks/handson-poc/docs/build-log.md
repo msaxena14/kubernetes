@@ -99,6 +99,15 @@ aws iam create-open-id-connect-provider --url <OIDC_ISSUER_URL> --client-id-list
    "<OIDC_ISSUER_HOST_AND_PATH>:aud":"sts.amazonaws.com",
    "<OIDC_ISSUER_HOST_AND_PATH>:sub":"system:serviceaccount:kube-system:aws-node"}}}]}
 ```
+The same cluster value appears in **two different shapes**, and mixing them up is the usual mistake:
+
+| Where | Shape | Example form |
+|---|---|---|
+| `Principal.Federated` | The provider **ARN**, written **once** | `arn:aws:iam::<ACCOUNT_ID>:oidc-provider/oidc.eks.<REGION>.amazonaws.com/id/<ID>` |
+| Condition keys | The **issuer** only: no `arn:...`, no `https://`, then `:aud` or `:sub` | `oidc.eks.<REGION>.amazonaws.com/id/<ID>:aud` |
+
+Get the issuer from `aws eks describe-cluster --name <CLUSTER> --query cluster.identity.oidc.issuer` (it prints `https://oidc.eks...`; drop the `https://`). Pasting the ARN into the condition keys, or the ARN inside the ARN, makes the IAM editor report `Invalid Service: The service arn does not exist` and `Unsupported Action For Condition Key`. Fix the JSON; do not save a policy with those warnings, because the `aud`/`sub` restriction would not be evaluated.
+
 Save the JSON above as `cni-trust.json`, then:
 ```bash
 aws iam create-role --role-name <CNI_ROLE> --assume-role-policy-document file://cni-trust.json

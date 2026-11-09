@@ -186,3 +186,12 @@ Each entry: Symptom, Cause, Found by, Fix, Prevent. IDs and names are placeholde
 **Found by:** `aws eks list-access-entries` showed three principals and not the bastion role; the instance's role was read from its instance profile association. An authentication error (rather than a timeout) means the request reached the API server.
 **Fix:** `create-access-entry` (type `STANDARD`) plus `associate-access-policy` with `AmazonEKSClusterAdminPolicy` at cluster scope.
 **Prevent:** Treat any new `kubectl` user (bastion, CI, teammate) as three tasks: IAM permission, network path, access entry. See build-log step 10.
+
+---
+
+### IRSA trust policy: `Invalid Service: The service arn does not exist`
+**Symptom:** Saving the CNI role's trust policy in the IAM editor shows `Invalid Service: The service arn does not exist` on the Principal and condition lines, and `Unsupported Action For Condition Key: ... sts:AssumeRoleWithWebIdentity are not supported by the condition key arn:aws:iam::...:aud / :sub. The condition will not be evaluated`.
+**Cause:** The OIDC value was pasted in the wrong shape in two places. `Principal.Federated` had the provider ARN nested inside the provider ARN. The condition keys used the full ARN instead of the issuer (`oidc.eks.<region>.amazonaws.com/id/<ID>`). IAM reads everything before the first `:` in a condition key as a service prefix, so a key starting with `arn:` is taken to be the service "arn". The `aud`/`sub` conditions are then not recognized, so the restriction to the `aws-node` service account would not apply.
+**Found by:** Reading the validator messages against the key format, and confirming with the CLI that the IAM OIDC provider existed and matched the cluster's `identity.oidc.issuer`.
+**Fix:** `Principal.Federated` = the provider ARN, once. Condition keys = the issuer without `arn:` and without `https://`, followed by `:aud` or `:sub`.
+**Prevent:** Build the trust policy from two variables, the provider ARN and the issuer, instead of pasting by hand (this is also how the Terraform version does it). Never save a trust policy that shows validator warnings.
