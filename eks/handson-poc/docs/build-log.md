@@ -207,13 +207,19 @@ spec:
     config:
       maxPods: 29
       clusterDNS:
-      - <SERVICE_CIDR_DOT_10>
+      - <KUBE_DNS_IP>
     flags:
     - "--node-labels=product=infra,project=<CLUSTER>,env=dev"
 
 --//--
 ```
-- `cidr` is the Kubernetes **service** CIDR (from `describe-cluster`), not the VPC CIDR. `clusterDNS` is its `.10` address.
+- `cidr` is the Kubernetes **service** CIDR (from `describe-cluster`), not the VPC CIDR.
+- `<KUBE_DNS_IP>` is the IP address of the cluster's DNS service (CoreDNS): by EKS convention the **`.10` address inside the service CIDR** (the `.1` is the `kubernetes` API service). For `172.20.0.0/16` it is `172.20.0.10`; for `10.100.0.0/16` it is `10.100.0.10`. The kubelet writes it into every pod's `/etc/resolv.conf`. If it is wrong, nodes still join but every name lookup inside pods fails.
+  ```bash
+  aws eks describe-cluster --name <CLUSTER> --query cluster.kubernetesNetworkConfig.serviceIpv4Cidr --output text   # then replace the last part with .10
+  kubectl -n kube-system get svc kube-dns   # after the cluster is up: the CLUSTER-IP must match
+  ```
+- The last line of the user data must be exactly `--//--`. A stray character after it (for example a trailing backslash from copying) can break the MIME closing boundary.
 - `name` must equal the real cluster name; nodeadm uses it for kubelet authentication. After a rebuild this was left at the old cluster's name.
 - `maxPods: 29` matches `c6g/c7g.large` (3 ENIs x (10 IPs - 1) + 2).
 
